@@ -106,6 +106,4 @@ def salvar_imagem_cisterciense(numero, pasta="imagens_cistercienses"):
         os.makedirs(pasta)
     caminho = f"{pasta}/{numero}.png"
     cv2.imwrite(caminho, img)
-    print(f"Imagem salva em {caminho}")
     return caminho
-

@@ -25,11 +25,3 @@ def mostrar_imagem_com_linhas(caminho_imagem):
     plt.axis('off')
     plt.title("Imagem com linhas detectadas")
     plt.show()
-
-    if linhas is not None:
-        print(f"{len(linhas)} linhas detectadas:")
-        for idx, linha in enumerate(linhas):
-            print(f"Linha {idx+1}: ({linha[0][0]}, {linha[0][1]}) -> ({linha[0][2]}, {linha[0][3]})")
-    else:
-        print("Nenhuma linha detectada.")
-

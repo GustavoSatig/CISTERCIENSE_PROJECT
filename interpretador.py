@@ -5,11 +5,25 @@ import matplotlib.pyplot as plt
 def detectar_linhas(imagem):
     cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
     bordas = cv2.Canny(cinza, 50, 150, apertureSize=3)
+
+    cv2.imshow("Bordas", bordas)
+    cv2.waitKey(0)
+
     linhas = cv2.HoughLinesP(bordas, 1, np.pi / 180, threshold=50, minLineLength=30, maxLineGap=20)
+
+    if linhas is not None:
+        img_linhas = imagem.copy()
+        for linha in linhas:
+            x1, y1, x2, y2 = linha[0]
+            cv2.line(img_linhas, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        cv2.imshow("Linhas Detectadas", img_linhas)
+        cv2.waitKey(0)
+
     return linhas
 
 def identificar_quadrante(x, y):
-    margem = 30  # margem de segurança aumentada
+    margem = 30
 
     if y < 200:
         if x >= 200 + margem:
@@ -21,22 +35,22 @@ def identificar_quadrante(x, y):
             return "centena"
         elif x <= 200 - margem:
             return "milhar"
-    return None  # zona central, ignorar
+    return None
 
-def classificar_posicao(x1, y1, x2, y2, quadrante):
+def classificar_posicao(x1, y1, x2, y2, quadrante, altura):
     xm, ym = (x1 + x2) // 2, (y1 + y2) // 2
 
-    if quadrante in ['unidade', 'dezena']:  # superior
-        if ym < 60:
+    if quadrante in ['unidade', 'dezena']:
+        if altura < 60:
             return 'top'
-        elif ym < 120:
+        elif altura < 120:
             return 'middle'
         else:
             return 'bottom'
-    elif quadrante in ['centena', 'milhar']:  # inferior
-        if ym > 340:
+    elif quadrante in ['centena', 'milhar']:
+        if altura > 340:
             return 'bottom'
-        elif ym > 280:
+        elif altura > 280:
             return 'middle'
         else:
             return 'top'
@@ -81,7 +95,6 @@ def deduzir_valor_quadrante(tipos):
         if sorted(combinacao) == tipos:
             return numero
 
-    # Correções específicas tolerantes (gambiarras úteis mas seguras)
     if 'diagonal_esq_cima_top' in tipos and 'vertical_bottom' in tipos:
         return 3
     if 'diagonal_dir_cima_top' in tipos and 'vertical_bottom' in tipos:
@@ -110,6 +123,16 @@ def filtrar_linhas_semelhantes(linhas, threshold=10):
             unicas.append(nova)
     return unicas
 
+def converter_para_numero(tipos_por_quadrante):
+    milhar = deduzir_valor_quadrante(tipos_por_quadrante["milhar"])
+    centena = deduzir_valor_quadrante(tipos_por_quadrante["centena"])
+    dezena = deduzir_valor_quadrante(tipos_por_quadrante["dezena"])
+    unidade = deduzir_valor_quadrante(tipos_por_quadrante["unidade"])
+
+    numero = milhar * 1000 + centena * 100 + dezena * 10 + unidade
+
+    return numero
+
 def interpretar_imagem(img):
     linhas = detectar_linhas(img)
     linhas = filtrar_linhas_semelhantes(linhas)
@@ -124,14 +147,12 @@ def interpretar_imagem(img):
     }
 
     img_debug = img.copy()
-    # Desenha linhas centrais dos quadrantes (eixos X e Y)
-    cv2.line(img_debug, (200, 0), (200, 400), (150, 150, 150), 1)  # vertical
-    cv2.line(img_debug, (0, 200), (400, 200), (150, 150, 150), 1)  # horizontal
+    cv2.line(img_debug, (200, 0), (200, 400), (150, 150, 150), 1)
+    cv2.line(img_debug, (0, 200), (400, 200), (150, 150, 150), 1)
 
     for linha in linhas:
         x1, y1, x2, y2 = linha[0]
         if (180 <= x1 <= 220 and 180 <= x2 <= 220):
-            print(f"Ignorando linha central: ({x1}, {y1}) → ({x2}, {y2})")
             continue
 
         if min(x1, x2) < 10 or max(x1, x2) > 390 or min(y1, y2) < 10 or max(y1, y2) > 390:
@@ -141,30 +162,26 @@ def interpretar_imagem(img):
         if not quad:
             continue
         tipo = identificar_tipo_linha(x1, y1, x2, y2)
-        zona = classificar_posicao(x1, y1, x2, y2, quad)
+
+        altura = (y1 + y2) // 2
+
+        zona = classificar_posicao(x1, y1, x2, y2, quad, altura)
         label = f"{tipo}_{zona}"
-        print(f"[{quad.upper()}] → tipo: {tipo}, zona: {zona}, label: {label}")
         tipos_por_quadrante[quad].append(label)
 
         cor = {
-            "milhar": (0, 0, 255),     # vermelho
-            "centena": (0, 255, 0),    # verde
-            "dezena": (255, 0, 0),     # azul
-            "unidade": (0, 255, 255),  # amarelo
+            "milhar": (0, 0, 255),   
+            "centena": (0, 255, 0),  
+            "dezena": (255, 0, 0),   
+            "unidade": (0, 255, 255),
         }.get(quad, (128, 128, 128))
         cv2.line(img_debug, (x1, y1), (x2, y2), cor, 2)
         cv2.putText(img_debug, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, cor, 1)
-
-    print("\n--- Detecção por quadrante ---")
-    for quad, tipos in tipos_por_quadrante.items():
-        print(f"{quad.upper()}: {tipos}")
 
     milhar = deduzir_valor_quadrante(tipos_por_quadrante["milhar"])
     centena = deduzir_valor_quadrante(tipos_por_quadrante["centena"])
     dezena = deduzir_valor_quadrante(tipos_por_quadrante["dezena"])
     unidade = deduzir_valor_quadrante(tipos_por_quadrante["unidade"])
-
-    print(f"\n↳ MILHAR: {milhar} | CENTENA: {centena} | DEZENA: {dezena} | UNIDADE: {unidade}")
 
     numero = milhar * 1000 + centena * 100 + dezena * 10 + unidade
 
@@ -172,7 +189,6 @@ def interpretar_imagem(img):
     plt.imshow(img_rgb)
     plt.title(f"Número interpretado: {numero}")
     plt.axis('off')
-    plt.savefig(f"saida_debug_{numero}.png")  # salva a imagem
-    print(f"Imagem de debug salva como saida_debug_{numero}.png")
+    plt.savefig(f"debug_img/saida_{numero}.png")
 
     return numero, linhas
