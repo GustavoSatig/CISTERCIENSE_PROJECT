@@ -25,6 +25,9 @@ def menu():
             for i, img in enumerate(imagens):
                 print(f"{i+1}: {img}")
             escolha = int(input("Escolha a imagem para leitura: "))
+            if escolha < 1 or escolha > len(imagens):
+                print("Opção inválida.")
+                return
             caminho = os.path.join("imagens_cistercienses", imagens[escolha-1])
 
             img = cv2.imread(caminho)
